@@ -109,7 +109,7 @@ class NovaPopup final : public Popup {
             spr, this, menu_selector(NovaPopup::onOption)
         );
         item->setTag(tag);
-        item->setPosition({x, y});
+        item->setPosition({static_cast<float>(x), static_cast<float>(y)});
         m_options->addChild(item);
     }
 
@@ -221,7 +221,7 @@ class NovaOrb final : public CCLayer {
 
         auto p = Nova::savedPosition();
         if (p.x < 0.f || p.y < 0.f)
-            p = {size.width - 36.f, size.height * .62f};
+            p = CCPoint(size.width - 36.f, size.height * .62f);
 
         setOrbPosition(p);
         return true;
