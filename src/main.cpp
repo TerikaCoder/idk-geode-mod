@@ -9,16 +9,28 @@ namespace Nova {
         return Mod::get()->getSavedValue<bool>("show-fps", true);
     }
 
-    static void setFpsEnabled(bool value) {
-        Mod::get()->setSavedValue<bool>("show-fps", value);
+    static void setFPS(bool v) {
+        Mod::get()->setSavedValue<bool>("show-fps", v);
     }
 
-    static float savedX() {
-        return Mod::get()->getSavedValue<float>("overlay-x", -1.f);
+    static int theme() {
+        return Mod::get()->getSavedValue<int>("theme", 0);
     }
 
-    static float savedY() {
-        return Mod::get()->getSavedValue<float>("overlay-y", -1.f);
+    static ccColor4B accent() {
+        switch (theme()) {
+            case 1: return {  0, 210, 170, 255};
+            case 2: return { 80, 150, 255, 255};
+            case 3: return {190, 100, 255, 255};
+            case 4: return {255, 140,  70, 255};
+            default:return { 40, 220, 200, 255};
+        }
+    }
+
+    static CCPoint savedPosition() {
+        float x = Mod::get()->getSavedValue<float>("overlay-x", -1.f);
+        float y = Mod::get()->getSavedValue<float>("overlay-y", -1.f);
+        return {x, y};
     }
 
     static void savePosition(CCPoint p) {
@@ -28,33 +40,26 @@ namespace Nova {
 }
 
 class NovaPopup final : public Popup {
-protected:
-    CCMenu* m_options = nullptr;
     CCLabelBMFont* m_heading = nullptr;
     CCLabelBMFont* m_status = nullptr;
-    int m_category = 1;
+    CCMenu* m_options = nullptr;
+    int m_tab = 0;
 
     bool init() {
-        if (!Popup::init(440.f, 292.f))
-            return false;
-
+        if (!Popup::init(430.f, 285.f)) return false;
         this->setTitle("NOVA");
 
-        auto panel = CCLayerColor::create(
-            {28, 31, 49, 245}, 420.f, 258.f
-        );
-        panel->setPosition({10.f, 12.f});
-        m_mainLayer->addChild(panel, -1);
+        auto bg = CCLayerColor::create({18, 23, 38, 250}, 410.f, 250.f);
+        bg->setPosition({10.f, 12.f});
+        m_mainLayer->addChild(bg, -1);
 
-        auto sidebar = CCLayerColor::create(
-            {37, 41, 62, 255}, 112.f, 244.f
-        );
-        sidebar->setPosition({17.f, 19.f});
-        m_mainLayer->addChild(sidebar);
+        auto side = CCLayerColor::create({27, 35, 53, 255}, 108.f, 236.f);
+        side->setPosition({17.f, 19.f});
+        m_mainLayer->addChild(side);
 
-        auto categories = CCMenu::create();
-        categories->setPosition({73.f, 250.f});
-        m_mainLayer->addChild(categories, 2);
+        auto tabs = CCMenu::create();
+        tabs->setPosition({71.f, 240.f});
+        m_mainLayer->addChild(tabs, 3);
 
         const char* names[] = {
             "Global", "Level", "Bypass", "Player", "Bot",
@@ -62,155 +67,217 @@ protected:
         };
 
         for (int i = 0; i < 9; ++i) {
-            auto sprite = ButtonSprite::create(
+            auto spr = ButtonSprite::create(
                 names[i], 88, true, "bigFont.fnt",
-                i == m_category ? "GJ_button_02.png" : "GJ_button_04.png",
-                22.f, 0.48f
+                i == m_tab ? "GJ_button_02.png" : "GJ_button_04.png",
+                22.f, 0.46f
             );
             auto item = CCMenuItemSpriteExtra::create(
-                sprite, this, menu_selector(NovaPopup::onCategory)
+                spr, this, menu_selector(NovaPopup::onTab)
             );
             item->setTag(i);
-            item->setPosition({0.f, -i * 26.f});
-            categories->addChild(item);
+            item->setPosition({0.f, -i * 25.f});
+            tabs->addChild(item);
         }
 
-        m_heading = CCLabelBMFont::create("LEVEL", "bigFont.fnt");
-        m_heading->setAnchorPoint({0.f, 0.5f});
-        m_heading->setScale(0.58f);
-        m_heading->setPosition({143.f, 251.f});
+        m_heading = CCLabelBMFont::create("Global", "bigFont.fnt");
+        m_heading->setAnchorPoint({0.f, .5f});
+        m_heading->setPosition({137.f, 242.f});
+        m_heading->setScale(.62f);
         m_mainLayer->addChild(m_heading);
 
-        m_status = CCLabelBMFont::create(
-            "FPS overlay is enabled", "bigFont.fnt"
-        );
-        m_status->setAnchorPoint({0.f, 0.5f});
-        m_status->setScale(0.34f);
-        m_status->setPosition({143.f, 30.f});
+        m_status = CCLabelBMFont::create("NOVA settings", "bigFont.fnt");
+        m_status->setAnchorPoint({0.f, .5f});
+        m_status->setPosition({137.f, 28.f});
+        m_status->setScale(.32f);
         m_mainLayer->addChild(m_status);
 
         m_options = CCMenu::create();
         m_options->setPosition({0.f, 0.f});
-        m_mainLayer->addChild(m_options, 3);
+        m_mainLayer->addChild(m_options, 5);
 
-        buildOptions();
+        buildTab();
         return true;
     }
 
-    void addRow(const char* title, int column, int row, bool checked,
-                int tag, bool enabled = false) {
-        const float x = column == 0 ? 151.f : 307.f;
-        const float y = 218.f - row * 24.f;
-
-        auto boxSprite = ButtonSprite::create(
-            checked ? "✓" : "", 23, true, "bigFont.fnt",
-            checked ? "GJ_button_02.png" : "GJ_button_04.png",
-            20.f, 0.58f
+    void addOption(const char* title, int x, int y, int tag) {
+        auto spr = ButtonSprite::create(
+            title, 138, true, "bigFont.fnt",
+            "GJ_button_04.png", 22.f, .40f
         );
-        auto box = CCMenuItemSpriteExtra::create(
-            boxSprite, this, menu_selector(NovaPopup::onOption)
+        auto item = CCMenuItemSpriteExtra::create(
+            spr, this, menu_selector(NovaPopup::onOption)
         );
-        box->setTag(tag);
-        box->setPosition({x, y});
-        m_options->addChild(box);
-
-        auto label = CCLabelBMFont::create(title, "bigFont.fnt");
-        label->setAnchorPoint({0.f, 0.5f});
-        label->setScale(0.37f);
-        label->setPosition({x + 16.f, y});
-        label->setOpacity(enabled ? 255 : 205);
-        m_options->addChild(label);
+        item->setTag(tag);
+        item->setPosition({x, y});
+        m_options->addChild(item);
     }
 
-    void buildOptions() {
+    void buildTab() {
         m_options->removeAllChildren();
 
         const char* names[] = {
             "Global", "Level", "Bypass", "Player", "Bot",
             "Creator", "Labels", "Shortcuts", "Interface"
         };
-        m_heading->setString(names[m_category]);
+        m_heading->setString(names[m_tab]);
 
-        if (m_category == 0) {
-            addRow("Show FPS overlay", 0, 0, Nova::fpsEnabled(), 100, true);
-            addRow("Show NOVA button", 0, 1, true, 101, true);
-            addRow("Remember position", 0, 2, true, 102, true);
-            addRow("Compact mode", 1, 0, false, 199);
-            addRow("Extra animations", 1, 1, false, 199);
-            m_status->setString("FPS and overlay preferences are saved");
-            return;
-        }
-
-        if (m_category == 1) {
-            const char* left[] = {
-                "0% Practice Completion", "All Platformer Modes",
-                "Always Show Coins", "Auto Pickup Coins",
-                "Auto Song Download", "Confirm Full Restart",
-                "Confirm Restart", "Freeze Attempts", "Hide Pause Menu"
+        if (m_tab == 0) {
+            addOption(
+                Nova::fpsEnabled() ? "FPS: ON" : "FPS: OFF",
+                215, 205, 1
+            );
+            m_status->setString("FPS overlay preference saved");
+        } else if (m_tab == 8) {
+            const char* colors[] = {
+                "Teal", "Mint", "Blue", "Purple", "Orange"
             };
-            const char* right[] = {
-                "Accurate Percentage", "All Passable", "Auto LDM",
-                "Auto Practice Mode", "Checkpoint Delay",
-                "Confirm Practice Mode", "Force Platformer",
-                "Hide Complete VFX", "Hitbox Multiplier"
-            };
-
-            for (int i = 0; i < 9; ++i) {
-                addRow(left[i], 0, i, false, 199);
-                addRow(right[i], 1, i, false, 199);
-            }
-            m_status->setString("Level options not implemented yet");
-            return;
+            int current = Nova::theme();
+            char text[80];
+            snprintf(text, sizeof(text), "Accent: %s",
+                colors[(current >= 0 && current < 5) ? current : 0]);
+            addOption(text, 215, 205, 2);
+            m_status->setString("Tap to cycle accent color");
+        } else {
+            addOption("Coming in next implementation", 230, 205, 99);
+            m_status->setString("This tab is not implemented yet");
         }
-
-        if (m_category == 4) {
-            addRow("Recording", 0, 0, false, 199);
-            addRow("Playback", 0, 1, false, 199);
-            addRow("Save replay", 1, 0, false, 199);
-            addRow("Load replay", 1, 1, false, 199);
-            m_status->setString("Bot replay engine not implemented");
-            return;
-        }
-
-        addRow("Feature unavailable", 0, 0, false, 199);
-        addRow("Not implemented yet", 0, 1, false, 199);
-        m_status->setString("These controls are placeholders");
     }
 
-    void onCategory(CCObject* sender) {
-        m_category = static_cast<CCNode*>(sender)->getTag();
-        buildOptions();
+    void onTab(CCObject* sender) {
+        m_tab = static_cast<CCNode*>(sender)->getTag();
+        buildTab();
     }
 
     void onOption(CCObject* sender) {
         int tag = static_cast<CCNode*>(sender)->getTag();
 
-        if (m_category == 0 && tag == 100) {
-            Nova::setFpsEnabled(!Nova::fpsEnabled());
-            buildOptions();
-            return;
+        if (tag == 1) {
+            Nova::setFPS(!Nova::fpsEnabled());
+            buildTab();
+        } else if (tag == 2) {
+            int next = (Nova::theme() + 1) % 5;
+            Mod::get()->setSavedValue<int>("theme", next);
+            buildTab();
+        } else {
+            FLAlertLayer::create("NOVA", "This option is not implemented yet.", "OK")->show();
         }
-
-        if (tag == 101 || tag == 102) {
-            FLAlertLayer::create(
-                "NOVA",
-                "This control is not connected yet.",
-                "OK"
-            )->show();
-            return;
-        }
-
-        FLAlertLayer::create(
-            "NOVA",
-            "This feature is not implemented yet.",
-            "OK"
-        )->show();
     }
 
 public:
     static NovaPopup* create() {
         auto ret = new NovaPopup();
-        if (ret->init()) {
+        if (ret && ret->init()) {
+            ret->autorelease();
+            return ret;
+        }
+        delete ret;
+        return nullptr;
+    }
+};
+
+// Floating circular N button. Drag to move; tap to open NOVA.
+class NovaOrb final : public CCLayer {
+    CCDrawNode* m_circle = nullptr;
+    CCLabelBMFont* m_letter = nullptr;
+    CCPoint m_touchStart = {0.f, 0.f};
+    CCPoint m_startPosition = {0.f, 0.f};
+    bool m_dragging = false;
+    bool m_moved = false;
+    float m_radius = 24.f;
+
+    void redraw() {
+        if (!m_circle) return;
+        m_circle->clear();
+        auto c = Nova::accent();
+        ccColor4F fill = {
+            c.r / 255.f, c.g / 255.f, c.b / 255.f, .96f
+        };
+        ccColor4F edge = {.85f, .98f, 1.f, 1.f};
+        m_circle->drawDot({0.f, 0.f}, m_radius, fill);
+        m_circle->drawSegment(
+            {-m_radius + 2.f, 0.f},
+            {m_radius - 2.f, 0.f},
+            1.f, edge
+        );
+    }
+
+    bool init() {
+        if (!CCLayer::init()) return false;
+
+        auto size = CCDirector::sharedDirector()->getWinSize();
+        this->setContentSize(size);
+        this->setTouchEnabled(true);
+        this->setTouchMode(kCCTouchesOneByOne);
+        this->setTouchPriority(-500);
+
+        m_circle = CCDrawNode::create();
+        this->addChild(m_circle);
+        redraw();
+
+        m_letter = CCLabelBMFont::create("N", "goldFont.fnt");
+        m_letter->setScale(.72f);
+        this->addChild(m_letter);
+
+        auto p = Nova::savedPosition();
+        if (p.x < 0.f || p.y < 0.f)
+            p = {size.width - 36.f, size.height * .62f};
+
+        setOrbPosition(p);
+        return true;
+    }
+
+    void setOrbPosition(CCPoint p) {
+        auto size = CCDirector::sharedDirector()->getWinSize();
+        p.x = std::max(m_radius, std::min(size.width - m_radius, p.x));
+        p.y = std::max(m_radius, std::min(size.height - m_radius, p.y));
+        m_circle->setPosition(p);
+        m_letter->setPosition(p);
+    }
+
+    bool ccTouchBegan(CCTouch* touch, CCEvent*) {
+        CCPoint p = this->convertToNodeSpace(touch->getLocation());
+        CCPoint center = m_circle->getPosition();
+        float dx = p.x - center.x;
+        float dy = p.y - center.y;
+        if (dx * dx + dy * dy > (m_radius + 8.f) * (m_radius + 8.f))
+            return false;
+
+        m_dragging = true;
+        m_moved = false;
+        m_touchStart = p;
+        m_startPosition = center;
+        return true;
+    }
+
+    void ccTouchMoved(CCTouch* touch, CCEvent*) {
+        if (!m_dragging) return;
+        CCPoint p = this->convertToNodeSpace(touch->getLocation());
+        float dx = p.x - m_touchStart.x;
+        float dy = p.y - m_touchStart.y;
+
+        if (dx * dx + dy * dy > 36.f) m_moved = true;
+        if (m_moved)
+            setOrbPosition({m_startPosition.x + dx, m_startPosition.y + dy});
+    }
+
+    void ccTouchEnded(CCTouch*, CCEvent*) {
+        if (!m_dragging) return;
+        m_dragging = false;
+
+        if (m_moved) {
+            Nova::savePosition(m_circle->getPosition());
+            return;
+        }
+
+        auto popup = NovaPopup::create();
+        if (popup) popup->show();
+    }
+
+public:
+    static NovaOrb* create() {
+        auto ret = new NovaOrb();
+        if (ret && ret->init()) {
             ret->autorelease();
             return ret;
         }
@@ -221,35 +288,33 @@ public:
 
 class $modify(NovaMenuLayer, MenuLayer) {
     bool init() {
-        if (!MenuLayer::init())
-            return false;
+        if (!MenuLayer::init()) return false;
 
         auto sprite = ButtonSprite::create(
             "NOVA", 60, true, "goldFont.fnt",
-            "GJ_button_04.png", 30.f, 0.8f
+            "GJ_button_04.png", 30.f, .8f
         );
-        auto button = CCMenuItemSpriteExtra::create(
+        auto item = CCMenuItemSpriteExtra::create(
             sprite, this, menu_selector(NovaMenuLayer::onNova)
         );
         auto menu = CCMenu::create();
         menu->setID("nova-qol-menu");
         menu->setPosition({42.f, 80.f});
-        menu->addChild(button);
+        menu->addChild(item);
         this->addChild(menu, 1000);
         return true;
     }
 
     void onNova(CCObject*) {
         auto popup = NovaPopup::create();
-        if (popup)
-            popup->show();
+        if (popup) popup->show();
     }
 };
 
 class $modify(NovaPlayLayer, PlayLayer) {
     struct Fields {
+        NovaOrb* orb = nullptr;
         CCLabelBMFont* fps = nullptr;
-        CCMenu* overlay = nullptr;
         int frames = 0;
         float elapsed = 0.f;
     };
@@ -259,70 +324,42 @@ class $modify(NovaPlayLayer, PlayLayer) {
             return false;
 
         auto size = CCDirector::sharedDirector()->getWinSize();
+        auto orb = NovaOrb::create();
+        if (orb) {
+            this->addChild(orb, 1000);
+            m_fields->orb = orb;
+        }
 
         auto fps = CCLabelBMFont::create("FPS: --", "bigFont.fnt");
         if (fps) {
             fps->setAnchorPoint({0.f, 1.f});
             fps->setPosition({10.f, size.height - 10.f});
-            fps->setScale(0.48f);
+            fps->setScale(.48f);
             fps->setID("nova-fps-overlay");
             fps->setVisible(Nova::fpsEnabled());
             this->addChild(fps, 999);
             m_fields->fps = fps;
         }
-
-        auto sprite = ButtonSprite::create(
-            "NOVA", 54, true, "goldFont.fnt",
-            "GJ_button_04.png", 28.f, 0.75f
-        );
-        auto button = CCMenuItemSpriteExtra::create(
-            sprite, this, menu_selector(NovaPlayLayer::onNova)
-        );
-
-        auto menu = CCMenu::create();
-        menu->setID("nova-game-overlay-menu");
-
-        float x = Nova::savedX();
-        float y = Nova::savedY();
-        if (x < 0.f || y < 0.f) {
-            x = size.width - 48.f;
-            y = size.height * 0.62f;
-        }
-        menu->setPosition({x, y});
-        menu->addChild(button);
-        this->addChild(menu, 1000);
-        m_fields->overlay = menu;
-
         return true;
-    }
-
-    void onNova(CCObject*) {
-        auto popup = NovaPopup::create();
-        if (popup)
-            popup->show();
     }
 
     void update(float dt) {
         PlayLayer::update(dt);
-
         auto label = m_fields->fps;
-        if (!label)
-            return;
+        if (!label) return;
 
         label->setVisible(Nova::fpsEnabled());
-        if (!Nova::fpsEnabled() || dt <= 0.f)
-            return;
+        if (!Nova::fpsEnabled() || dt <= 0.f) return;
 
         ++m_fields->frames;
         m_fields->elapsed += dt;
-
-        if (m_fields->elapsed >= 0.5f) {
-            int value = static_cast<int>(
-                m_fields->frames / m_fields->elapsed + 0.5f
+        if (m_fields->elapsed >= .5f) {
+            int fps = static_cast<int>(
+                m_fields->frames / m_fields->elapsed + .5f
             );
             m_fields->frames = 0;
             m_fields->elapsed = 0.f;
-            auto text = fmt::format("FPS: {}", value);
+            auto text = fmt::format("FPS: {}", fps);
             label->setString(text.c_str());
         }
     }
