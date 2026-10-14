@@ -7,10 +7,10 @@
         "ios": "2.2081"
     },
     "id": "bingduong.idk",
-    "name": "FPS Info Overlay",
-    "version": "v1.0.1",
+    "name": "NOVA QoL",
+    "version": "v0.2.0",
     "developer": "bingduong",
-    "description": "In-game FPS, level name, and game mode overlay.",
+    "description": "A lightweight Geometry Dash QoL panel with an FPS overlay.",
     "dependencies": {
         "geode.node-ids": ">=v1.23.3"
     }
