@@ -17,27 +17,26 @@ namespace Nova {
 class NovaPopup final : public Popup {
 protected:
     CCLabelBMFont* m_content = nullptr;
-    CCLabelBMFont* m_fpsStatus = nullptr;
 
     bool init() {
-        if (!Popup::init(320.f, 220.f))
+        if (!Popup::init(340.f, 240.f))
             return false;
 
         this->setTitle("NOVA QoL");
 
         auto subtitle = CCLabelBMFont::create(
-            "QUALITY OF LIFE  /  ANDROID",
+            "IN-GAME CONTROL PANEL",
             "goldFont.fnt"
         );
         if (subtitle) {
             subtitle->setScale(0.38f);
             subtitle->setOpacity(190);
-            subtitle->setPosition({160.f, 174.f});
+            subtitle->setPosition({170.f, 190.f});
             m_mainLayer->addChild(subtitle);
         }
 
         auto tabs = CCMenu::create();
-        tabs->setPosition({160.f, 145.f});
+        tabs->setPosition({170.f, 157.f});
         m_mainLayer->addChild(tabs);
 
         auto makeTab = [this, tabs](
@@ -56,42 +55,43 @@ protected:
             tabs->addChild(item);
         };
 
-        makeTab("HOME", menu_selector(NovaPopup::onHome), -102.f);
-        makeTab("QOL", menu_selector(NovaPopup::onQol), -34.f);
-        makeTab("BOT", menu_selector(NovaPopup::onBot), 34.f);
-        makeTab("SET", menu_selector(NovaPopup::onSettings), 102.f);
+        makeTab("HOME", menu_selector(NovaPopup::onHome), -112.f);
+        makeTab("QOL", menu_selector(NovaPopup::onQol), -38.f);
+        makeTab("BOT", menu_selector(NovaPopup::onBot), 38.f);
+        makeTab("SET", menu_selector(NovaPopup::onSettings), 112.f);
 
         m_content = CCLabelBMFont::create("", "bigFont.fnt");
         if (m_content) {
             m_content->setAnchorPoint({0.5f, 0.5f});
             m_content->setScale(0.43f);
-            m_content->setPosition({160.f, 95.f});
-            m_content->setWidth(650.f);
+            m_content->setPosition({170.f, 105.f});
+            m_content->setWidth(680.f);
             m_mainLayer->addChild(m_content);
         }
 
         auto actions = CCMenu::create();
-        actions->setPosition({160.f, 43.f});
+        actions->setPosition({170.f, 45.f});
         m_mainLayer->addChild(actions);
 
         auto fpsSprite = ButtonSprite::create(
-            "Toggle FPS", 90, true, "goldFont.fnt",
+            Nova::fpsEnabled() ? "FPS: ON" : "FPS: OFF",
+            95, true, "goldFont.fnt",
             "GJ_button_01.png", 30.f, 0.7f
         );
         auto fpsButton = CCMenuItemSpriteExtra::create(
             fpsSprite, this, menu_selector(NovaPopup::onToggleFps)
         );
-        fpsButton->setPosition({-67.f, 0.f});
+        fpsButton->setPosition({-65.f, 0.f});
         actions->addChild(fpsButton);
 
         auto botSprite = ButtonSprite::create(
-            "Bot status", 90, true, "goldFont.fnt",
+            "Bot status", 95, true, "goldFont.fnt",
             "GJ_button_02.png", 30.f, 0.7f
         );
         auto botButton = CCMenuItemSpriteExtra::create(
             botSprite, this, menu_selector(NovaPopup::onBot)
         );
-        botButton->setPosition({67.f, 0.f});
+        botButton->setPosition({65.f, 0.f});
         actions->addChild(botButton);
 
         this->showHome();
@@ -106,9 +106,10 @@ protected:
     void showHome() {
         setContent(
             "NOVA QoL\n"
-            "A lightweight in-game control panel.\n\n"
-            "Open QOL to configure the FPS overlay.\n"
-            "Open BOT to view replay feature status."
+            "In-game control panel\n\n"
+            "QOL: FPS overlay controls\n"
+            "BOT: replay feature status\n"
+            "SET: saved preferences"
         );
     }
 
@@ -123,8 +124,8 @@ protected:
     void refreshQol() {
         setContent(
             Nova::fpsEnabled()
-                ? "QOL SETTINGS\n\nFPS overlay: ON\n\nUse Toggle FPS below to disable it."
-                : "QOL SETTINGS\n\nFPS overlay: OFF\n\nUse Toggle FPS below to enable it."
+                ? "QOL SETTINGS\n\nFPS overlay: ON\n\nTap FPS: ON below to disable."
+                : "QOL SETTINGS\n\nFPS overlay: OFF\n\nTap FPS: OFF below to enable."
         );
     }
 
@@ -137,7 +138,7 @@ protected:
         setContent(
             "BOT SHOWCASE\n\n"
             "Replay engine: NOT IMPLEMENTED\n\n"
-            "This panel does not pretend to record or play macros yet."
+            "Recording and playback are not available yet."
         );
     }
 
@@ -145,7 +146,7 @@ protected:
         setContent(
             "SETTINGS\n\n"
             "FPS preference is saved automatically.\n"
-            "More appearance controls can be added here."
+            "More controls require implementation."
         );
     }
 
@@ -175,7 +176,6 @@ class $modify(NovaMenuLayer, MenuLayer) {
             sprite, this, menu_selector(NovaMenuLayer::onNova)
         );
 
-        // A separate menu avoids depending on the game's internal menu layout.
         auto menu = CCMenu::create();
         menu->setID("nova-qol-menu");
         menu->setPosition({42.f, 80.f});
@@ -207,28 +207,49 @@ class $modify(NovaPlayLayer, PlayLayer) {
         if (!PlayLayer::init(level, useReplay, dontCreateObjects))
             return false;
 
-        if (!Nova::fpsEnabled())
-            return true;
+        auto size = CCDirector::sharedDirector()->getWinSize();
 
+        // Always create the FPS label so it can be enabled mid-level.
         auto label = CCLabelBMFont::create(
-            "NOVA QoL  |  FPS: --",
+            "FPS: --",
             "bigFont.fnt"
         );
 
-        if (!label)
-            return true;
+        if (label) {
+            label->setAnchorPoint({0.f, 1.f});
+            label->setPosition({10.f, size.height - 10.f});
+            label->setScale(0.48f);
+            label->setOpacity(235);
+            label->setID("nova-fps-overlay");
+            label->setVisible(Nova::fpsEnabled());
+            this->addChild(label, 999);
+            m_fields->label = label;
+        }
 
-        auto size = CCDirector::sharedDirector()->getWinSize();
-        label->setAnchorPoint({0.f, 1.f});
-        label->setPosition({10.f, size.height - 10.f});
-        label->setScale(0.42f);
-        label->setOpacity(225);
-        label->setID("nova-fps-overlay");
+        // Separate overlay menu: visible during gameplay.
+        auto buttonSprite = ButtonSprite::create(
+            "NOVA", 54, true, "goldFont.fnt",
+            "GJ_button_04.png", 28.f, 0.75f
+        );
 
-        this->addChild(label, 999);
-        m_fields->label = label;
+        auto button = CCMenuItemSpriteExtra::create(
+            buttonSprite, this, menu_selector(NovaPlayLayer::onNova)
+        );
+
+        auto menu = CCMenu::create();
+        menu->setID("nova-game-overlay-menu");
+        menu->setPosition({size.width - 48.f, size.height * 0.62f});
+        button->setPosition({0.f, 0.f});
+        menu->addChild(button);
+        this->addChild(menu, 1000);
 
         return true;
+    }
+
+    void onNova(CCObject*) {
+        auto popup = NovaPopup::create();
+        if (popup)
+            popup->show();
     }
 
     void update(float dt) {
@@ -238,14 +259,8 @@ class $modify(NovaPlayLayer, PlayLayer) {
         if (!label)
             return;
 
-        if (!Nova::fpsEnabled()) {
-            label->setVisible(false);
-            return;
-        }
-
-        label->setVisible(true);
-
-        if (dt <= 0.f)
+        label->setVisible(Nova::fpsEnabled());
+        if (!Nova::fpsEnabled() || dt <= 0.f)
             return;
 
         m_fields->frames++;
@@ -261,7 +276,7 @@ class $modify(NovaPlayLayer, PlayLayer) {
         m_fields->frames = 0;
         m_fields->elapsed = 0.f;
 
-        auto text = fmt::format("NOVA QoL  |  FPS: {}", fps);
+        auto text = fmt::format("FPS: {}", fps);
         label->setString(text.c_str());
     }
 };
