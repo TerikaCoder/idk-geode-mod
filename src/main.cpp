@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <chrono>
 
 using namespace geode::prelude;
 
@@ -274,6 +275,10 @@ class NovaOrb final : public CCLayer {
         if (popup) popup->show();
     }
 
+    void registerWithTouchDispatcher() override {
+        CCTouchDispatcher::get()->addTargetedDelegate(this, -500, true);
+    }
+
 public:
     static NovaOrb* create() {
         auto ret = new NovaOrb();
@@ -315,8 +320,9 @@ class $modify(NovaPlayLayer, PlayLayer) {
     struct Fields {
         NovaOrb* orb = nullptr;
         CCLabelBMFont* fps = nullptr;
-        int frames = 0;
-        float elapsed = 0.f;
+        int fpsFrames = 0;
+        bool fpsWasEnabled = false;
+        std::chrono::steady_clock::time_point fpsSampleStart{};
     };
 
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
@@ -345,22 +351,45 @@ class $modify(NovaPlayLayer, PlayLayer) {
 
     void update(float dt) {
         PlayLayer::update(dt);
+
         auto label = m_fields->fps;
         if (!label) return;
 
-        label->setVisible(Nova::fpsEnabled());
-        if (!Nova::fpsEnabled() || dt <= 0.f) return;
+        const bool enabled = Nova::fpsEnabled();
+        label->setVisible(enabled);
 
-        ++m_fields->frames;
-        m_fields->elapsed += dt;
-        if (m_fields->elapsed >= .5f) {
-            int fps = static_cast<int>(
-                m_fields->frames / m_fields->elapsed + .5f
+        if (!enabled) {
+            m_fields->fpsFrames = 0;
+            m_fields->fpsWasEnabled = false;
+            return;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+
+        if (!m_fields->fpsWasEnabled) {
+            m_fields->fpsWasEnabled = true;
+            m_fields->fpsFrames = 0;
+            m_fields->fpsSampleStart = now;
+            label->setString("FPS: ...");
+            return;
+        }
+
+        ++m_fields->fpsFrames;
+
+        const auto elapsed = std::chrono::duration<double>(
+            now - m_fields->fpsSampleStart
+        ).count();
+
+        if (elapsed >= 0.5) {
+            const int fps = static_cast<int>(
+                m_fields->fpsFrames / elapsed + 0.5
             );
-            m_fields->frames = 0;
-            m_fields->elapsed = 0.f;
+
             auto text = fmt::format("FPS: {}", fps);
             label->setString(text.c_str());
+
+            m_fields->fpsFrames = 0;
+            m_fields->fpsSampleStart = now;
         }
     }
 };
